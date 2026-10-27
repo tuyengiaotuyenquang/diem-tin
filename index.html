@@ -411,6 +411,22 @@ async function moBai(khoa) {
   if (baiChon === khoa) veBai(boNhoBai.get(khoa) || { ...tomTat, loiTai: true });
 }
 
+// Cắt danh sách "Tin liên quan / Tin cùng chuyên mục" mà một số báo để lẫn trong thân bài,
+// bỏ các đoạn chỉ có dấu gạch (áp dụng cả cho bài đã lưu từ trước)
+const MOC_PHAN_THUA = new Set(["tin liên quan", "tin cùng chuyên mục", "tin khác", "các tin khác",
+  "xem thêm", "đọc thêm", "bài liên quan", "bài viết liên quan", "có thể bạn quan tâm", "tin mới nhất",
+  "tin đọc nhiều", "tin nổi bật", "tin mới", "cùng chuyên mục", "tin tức liên quan"]);
+function catPhanThua(doan) {
+  const kq = [];
+  for (let i = 0; i < doan.length; i++) {
+    const chuan = doan[i].normalize("NFC").toLowerCase().replace(/\s+/g, " ").replace(/^[\s:.\-–>»]+|[\s:.\-–>»]+$/g, "");
+    if (i >= 2 && MOC_PHAN_THUA.has(chuan)) break;
+    if (/^[\s\-–—_•·*|]+$/.test(doan[i])) continue;
+    kq.push(doan[i]);
+  }
+  return kq;
+}
+
 function veBai(b) {
   const m = MUC.find(x => x.ma === mucChon);
   const link = linkAnToan(b.link_goc) || linkAnToan(b.link_rss);
@@ -425,7 +441,7 @@ function veBai(b) {
     than = `<div class="hop-loi"><b>Không tải được nội dung</b>Kiểm tra kết nối mạng rồi bấm lại vào tin.</div>`;
   } else if (b.trang_thai === "ok" && b.noi_dung) {
     const tieuDeChuan = (b.tieu_de || "").trim().toLowerCase();
-    const doan = b.noi_dung.split(/\n{2,}/).map(s => s.trim()).filter(Boolean)
+    const doan = catPhanThua(b.noi_dung.split(/\n{2,}/).map(s => s.trim()).filter(Boolean))
       .filter((d, i) => !(i < 2 && tieuDeChuan.startsWith(d.toLowerCase())));
     const anh = linkAnToan(b.anh);
     than = (anh ? `<img class="bai-anh" src="${esc(anh)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "") +
