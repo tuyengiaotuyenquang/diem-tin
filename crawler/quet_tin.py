@@ -44,7 +44,7 @@ import trafilatura
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-PHIEN_BAN = "2026-10-23c"   # in ra log GitHub Actions để biết đang chạy bản nào
+PHIEN_BAN = "2026-10-27"   # in ra log GitHub Actions để biết đang chạy bản nào
 
 SO_NGAY_LUU = 30          # xóa tin cũ hơn số ngày này
 SO_NGAY_CHAM_LAI = 7      # chấm lại sắc thái cho tin trong bấy nhiêu ngày gần nhất
@@ -175,9 +175,10 @@ NEG_DAN_SINH = {
     "mất điện": 1, "thiếu nước": 1, "kêu trời": 2, "khốn khổ": 2,
     "phản ánh": 1, "xuống cấp": 1, "chậm tiến độ": 1, "bất cập": 1, "lãng phí": 1,
     "khiếu kiện": 1, "tố cáo": 1, "đình trệ": 1,
-    # thương vong: chỉ được bỏ qua khi bài là diễn tập/giả định
-    "tử vong": 2, "thiệt mạng": 2, "mất tích": 2, "thương vong": 2,
 }
+
+# Thương vong: chỉ được bỏ qua khi bài là diễn tập/giả định
+NEG_THUONG_VONG = {"tử vong": 2, "thiệt mạng": 2, "mất tích": 2, "thương vong": 2}
 
 # Thiên tai, sự cố: bỏ qua khi TIÊU ĐỀ nói về ứng phó, phòng chống, cứu hộ, khắc phục
 NEG_SU_CO = {
@@ -217,6 +218,27 @@ NGU_CANH_DAU_TRANH = [
     "trợ giúp pháp lý", "phòng ngừa", "phòng, chống", "phòng chống", "ngăn chặn", "đấu tranh",
     "triệt phá", "ra quân", "tập huấn", "hội thi", "cao điểm", "kiểm sát", "truy bắt thành công",
 ]
+# Chính quyền tiếp thu, xử lý phản ánh: chỉ xét TIÊU ĐỀ -> bỏ qua từ tiêu cực dân sinh
+# (vd "Tuyên Quang tiếp thu, khắc phục ô nhiễm tại bãi rác"). Cụm phủ định như
+# "chưa được khắc phục", "không giải quyết" bị loại trước khi dò nên không bị tính nhầm.
+NGU_CANH_TIEP_THU = [
+    "tiếp thu", "khắc phục", "xử lý dứt điểm", "giải quyết", "vào cuộc", "chấn chỉnh",
+    "làm rõ", "trả lời", "đối thoại", "tháo gỡ", "chỉ đạo", "kiểm tra, xử lý", "khẩn trương xử lý",
+    "di dời", "cải tạo", "nâng cấp", "sửa chữa",
+]
+# Xây dựng pháp luật, nghị trường: chỉ xét TIÊU ĐỀ -> bỏ qua từ pháp luật
+# (vd "Đại biểu Quốc hội thảo luận về Luật Xử lý vi phạm hành chính")
+NGU_CANH_LAP_PHAP = [
+    "dự thảo", "dự án luật", "luật", "bộ luật", "nghị định", "thông tư", "nghị quyết",
+    "thảo luận", "góp ý", "quốc hội", "đại biểu quốc hội", "kỳ họp", "hội đồng nhân dân", "hđnd",
+    "tiếp xúc cử tri", "xử lý vi phạm hành chính",
+]
+# Tin dịch vụ, tiện ích (thời tiết, lịch cắt điện...): chỉ xét TIÊU ĐỀ -> bỏ qua từ thiên tai
+# và dân sinh, KHÔNG cộng điểm (để ra Trung lập)
+NGU_CANH_TIEN_ICH = [
+    "thời tiết", "dự báo thời tiết", "lịch cắt điện", "lịch mất điện", "lịch cúp điện",
+    "lịch tạm ngừng cấp điện", "xổ số", "giá vàng", "giá xăng",
+]
 DIEM_NGU_CANH = 2
 
 POS_WORDS = {
@@ -226,7 +248,8 @@ POS_WORDS = {
     "đóng góp": 1, "khắc phục": 1, "phát triển": 1, "thành công": 1, "tăng trưởng": 1,
     "tăng tốc": 1, "khởi công": 1, "trao tặng": 1, "tặng quà": 1, "hỗ trợ": 1,
     "chúc mừng": 1, "tri ân": 1, "kỷ niệm": 1, "thăm hỏi": 1, "quảng bá": 1, "đón nhận": 1,
-    "chủ động": 1, "nâng cao": 1, "thúc đẩy": 1,
+    "chủ động": 1, "nâng cao": 1, "thúc đẩy": 1, "khai mạc": 1, "lễ hội": 1, "ra mắt": 1,
+    "tôn vinh": 1, "lan tỏa": 1, "tiếp thu": 1,
 }
 
 
@@ -245,7 +268,13 @@ NHOM_TIEU_CUC = [  # (tên nhóm, bảng từ, regex)
     ("dan_sinh", NEG_DAN_SINH, _bo_khop(NEG_DAN_SINH)),
     ("su_co", NEG_SU_CO, _bo_khop(NEG_SU_CO)),
     ("phap_luat", NEG_PHAP_LUAT, _bo_khop(NEG_PHAP_LUAT)),
+    ("thuong_vong", NEG_THUONG_VONG, _bo_khop(NEG_THUONG_VONG)),
 ]
+RE_TIEP_THU = _bo_khop(NGU_CANH_TIEP_THU)
+RE_LAP_PHAP = _bo_khop(NGU_CANH_LAP_PHAP)
+RE_TIEN_ICH = _bo_khop(NGU_CANH_TIEN_ICH)
+# "chưa được khắc phục", "không giải quyết", "chưa hề xử lý"... -> bỏ khi dò từ tích cực/ngữ cảnh
+RE_PHU_DINH = re.compile(r"(?<!\w)(?:chưa|không|chẳng)(?:\s+(?:được|hề|có|kịp|thể))*\s+\S+(?:\s+\S+)?")
 RE_GIA_DINH = _bo_khop(NGU_CANH_GIA_DINH)
 RE_UNG_PHO = _bo_khop(NGU_CANH_UNG_PHO)
 RE_DAU_TRANH = _bo_khop(NGU_CANH_DAU_TRANH)
@@ -259,7 +288,7 @@ def _diem_doan(text, bo_qua):
     """Trả về (điểm tích cực, điểm tiêu cực, cụm đã khớp); bo_qua = tập nhóm tiêu cực được bỏ qua."""
     pos = neg = 0
     khop = []
-    for m in RE_POS.finditer(text):
+    for m in RE_POS.finditer(RE_PHU_DINH.sub(" ", text)):
         pos += POS_WORDS[m.group(1)]
         khop.append("+" + m.group(1))
     for ten, bang, rx in NHOM_TIEU_CUC:
@@ -274,22 +303,30 @@ def _diem_doan(text, bo_qua):
 def phan_tich_sac_thai(tieu_de, tom_tat=""):
     """Trả về dict: nhan (Tích cực/Trung lập/Tiêu cực), diem, ngu_canh, khop (để dò lỗi)."""
     td, tt = _chuan_hoa(tieu_de), _chuan_hoa(tom_tat)
+    td_kd = RE_PHU_DINH.sub(" ", td)   # tiêu đề đã bỏ cụm phủ định, dùng để dò ngữ cảnh
     nc_gia_dinh = _tim(RE_GIA_DINH, td + " | " + tt)
-    nc_ung_pho = _tim(RE_UNG_PHO, td)
-    nc_dau_tranh = _tim(RE_DAU_TRANH, td)
+    nc_ung_pho = _tim(RE_UNG_PHO, td_kd)
+    nc_dau_tranh = _tim(RE_DAU_TRANH, td_kd) | _tim(RE_LAP_PHAP, td_kd)
+    nc_tiep_thu = _tim(RE_TIEP_THU, td_kd)
+    nc_tien_ich = _tim(RE_TIEN_ICH, td)
 
     bo_qua = set()
     if nc_gia_dinh:
-        bo_qua |= {"dan_sinh", "su_co", "phap_luat"}
+        bo_qua |= {"dan_sinh", "su_co", "phap_luat", "thuong_vong"}
     if nc_ung_pho:
         bo_qua.add("su_co")
     if nc_dau_tranh:
         bo_qua.add("phap_luat")
+    if nc_tiep_thu:
+        bo_qua.add("dan_sinh")
+    if nc_tien_ich:
+        bo_qua |= {"dan_sinh", "su_co"}
 
     p1, n1, k1 = _diem_doan(td, bo_qua)
     p2, n2, k2 = _diem_doan(tt, bo_qua)
-    ngu_canh = sorted(nc_gia_dinh | nc_ung_pho | nc_dau_tranh)
-    diem = 2 * (p1 - n1) + (p2 - n2) + (DIEM_NGU_CANH if ngu_canh else 0)
+    nc_cong_diem = nc_gia_dinh | nc_ung_pho | nc_dau_tranh | nc_tiep_thu
+    ngu_canh = sorted(nc_cong_diem | nc_tien_ich)
+    diem = 2 * (p1 - n1) + (p2 - n2) + (DIEM_NGU_CANH if nc_cong_diem else 0)
     nhan = "Tiêu cực" if diem < 0 else "Tích cực" if diem > 0 else "Trung lập"
     return {"nhan": nhan, "diem": diem, "ngu_canh": ngu_canh,
             "khop_tieu_de": k1, "khop_tom_tat": k2}
@@ -665,7 +702,7 @@ def boc_noi_dung(link):
         doc = doc.as_dict()
     text = (doc.get("text") or "").strip()
     # trafilatura trả các đoạn cách nhau bởi 1 dòng mới -> đổi sang dòng trống cho dễ hiển thị
-    doan = [d.strip() for d in text.split("\n") if d.strip()]
+    doan = cat_phan_thua([d.strip() for d in text.split("\n") if d.strip()])
     return {
         "noi_dung": "\n\n".join(doan),
         "tom_tat": (doc.get("description") or "").strip(),
@@ -676,6 +713,26 @@ def boc_noi_dung(link):
 
 
 VN_TZ = dt.timezone(dt.timedelta(hours=7))
+
+# Một số báo (Bnews, VietnamPlus...) để danh sách "Tin liên quan / Tin cùng chuyên mục" ngay
+# trong thân bài -> cắt bỏ từ đoạn tiêu đề đó trở đi, bỏ các đoạn chỉ có dấu gạch.
+MOC_PHAN_THUA = {
+    "tin liên quan", "tin cùng chuyên mục", "tin khác", "các tin khác", "xem thêm", "đọc thêm",
+    "bài liên quan", "bài viết liên quan", "có thể bạn quan tâm", "tin mới nhất", "tin đọc nhiều",
+    "tin nổi bật", "tin mới", "cùng chuyên mục", "tin tức liên quan",
+}
+
+
+def cat_phan_thua(doan):
+    kq = []
+    for i, d in enumerate(doan):
+        chuan = _chuan_hoa(d).strip(" :.-–>»")
+        if i >= 2 and chuan in MOC_PHAN_THUA:
+            break
+        if re.fullmatch(r"[\s\-–—_•·*|]+", d):
+            continue
+        kq.append(d)
+    return kq
 
 
 def ngay_dang_that(ngay_bai, ts_rss):
