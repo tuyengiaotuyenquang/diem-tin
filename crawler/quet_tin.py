@@ -44,7 +44,7 @@ import trafilatura
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-PHIEN_BAN = "2026-10-28"   # in ra log GitHub Actions để biết đang chạy bản nào
+PHIEN_BAN = "2026-10-28b"   # in ra log GitHub Actions để biết đang chạy bản nào
 
 SO_NGAY_LUU = 30          # xóa tin cũ hơn số ngày này
 SO_NGAY_CHAM_LAI = 7      # chấm lại sắc thái cho tin trong bấy nhiêu ngày gần nhất
@@ -366,11 +366,14 @@ def build_ward_group_queries(group_size=10):
     return queries
 
 
-# "xã Tuyên Quang", "thôn Hà Giang"... là địa danh TRÙNG TÊN ở tỉnh khác (vd xã Tuyên Quang
-# thuộc tỉnh Lâm Đồng), không phải tỉnh mình. Giữ nguyên "phường Hà Giang 1/2" vì là của tỉnh mình.
+# "xã Tuyên Quang", "đường Tuyên Quang"... là địa danh TRÙNG TÊN ở tỉnh khác (vd xã Tuyên Quang
+# thuộc Lâm Đồng, đường Tuyên Quang ở Phan Thiết, Hà Nội...), không phải tỉnh mình.
+# Giữ nguyên "phường Hà Giang 1/2" (của tỉnh mình) và tên tuyến "đường Tuyên Quang - Hà Giang"
+# (có dấu gạch nối phía sau).
 RE_DIA_DANH_TRUNG_TEN = re.compile(
-    r"(?<!\w)(?:xã|phường|thị trấn|thôn|bản|xóm|làng|tổ dân phố|ấp|khu phố)\s+"
-    r"(?:tuyên quang(?!\w)|hà giang(?!\s*\d)(?!\w))")
+    r"(?<!\w)(?:xã|phường|thị trấn|thôn|bản|xóm|làng|tổ dân phố|ấp|khu phố"
+    r"|đường|phố|ngõ|ngách|hẻm|kiệt|con đường|tuyến phố)\s+"
+    r"(?:tuyên quang|hà giang(?!\s*\d))(?!\w)(?!\s*[-–—])")
 
 
 def _bo_dia_danh_trung(text):
@@ -398,6 +401,10 @@ def is_local_content(title, summary, nguon="", link=""):
     """
     content = _bo_dia_danh_trung(title + " " + summary)
     if "tuyên quang" in content:
+        return True
+    # "Hà Giang" (tỉnh cũ, nay thuộc Tuyên Quang) -> liên quan, trừ khi nhắc tỉnh khác/nguồn tỉnh khác
+    if re.search(r"(?<!\w)hà giang(?!\w)", content) and not RE_TINH_KHAC.search(content) \
+            and not nguon_tinh_khac(nguon, link):
         return True
     if not RE_XA_PHUONG.search(content):
         return False
