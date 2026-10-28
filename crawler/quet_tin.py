@@ -44,7 +44,7 @@ import trafilatura
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-PHIEN_BAN = "2026-10-27"   # in ra log GitHub Actions để biết đang chạy bản nào
+PHIEN_BAN = "2026-10-28"   # in ra log GitHub Actions để biết đang chạy bản nào
 
 SO_NGAY_LUU = 30          # xóa tin cũ hơn số ngày này
 SO_NGAY_CHAM_LAI = 7      # chấm lại sắc thái cho tin trong bấy nhiêu ngày gần nhất
@@ -137,6 +137,19 @@ RE_XA_PHUONG = _regex_tu(OFFICIAL_WARD_NAMES_LOWER)
 SLUG_TINH_KHAC = sorted({_bo_dau(p).replace(" ", "").replace(".", "") for p in OTHER_PROVINCE_SIGNALS
                          if len(_bo_dau(p).replace(" ", "")) >= 5})
 SLUG_TINH_NHA = ("tuyenquang", "hagiang")
+
+
+# Nguồn bị chặn hẳn (mọi mục). Lâm Đồng có xã Tuyên Quang trùng tên tỉnh nên tin của họ hay
+# lọt vào. Viết không dấu, không cách; dò trong tên nguồn + tên miền (vd baolamdong.vn,
+# congan.lamdong.gov.vn, "Báo Lâm Đồng", "Công an tỉnh Lâm Đồng"). Muốn chặn thêm thì thêm vào đây.
+NGUON_CHAN = ["lamdong"]
+
+
+def nguon_bi_chan(nguon="", link=""):
+    m = re.match(r"https?://([^/]+)", link or "")
+    mien = m.group(1) if m and "news.google." not in m.group(1) else ""
+    chuoi = _bo_dau((nguon or "") + " " + mien).replace(" ", "")
+    return any(x in chuoi for x in NGUON_CHAN)
 
 
 def nguon_tinh_khac(nguon="", link=""):
@@ -499,6 +512,8 @@ def quet_tat_ca():
                 it = tach_entry(e)
                 if not it["title"] or not is_safe(it["title"], it["link"], it["summary"]):
                     continue
+                if nguon_bi_chan(it["nguon"], it["link"]):
+                    continue
                 k = title_key(it["title"])
                 if not k or k in seen:
                     continue
@@ -601,9 +616,11 @@ def sb_cham_lai_sac_thai():
         if moi != row.get("cam_xuc"):
             cap_nhat["cam_xuc"] = moi
             doi += 1
-        if (set(row.get("muc") or []) & {"diaphuong", "mxh"} and not row.get("ngoai_tinh")
-                and not is_local_content(row.get("tieu_de") or "", row.get("tom_tat") or "",
-                                         row.get("nguon") or "", row.get("link_goc") or "")):
+        if not row.get("ngoai_tinh") and (
+                nguon_bi_chan(row.get("nguon") or "", row.get("link_goc") or "")
+                or (set(row.get("muc") or []) & {"diaphuong", "mxh"}
+                    and not is_local_content(row.get("tieu_de") or "", row.get("tom_tat") or "",
+                                             row.get("nguon") or "", row.get("link_goc") or ""))):
             cap_nhat["ngoai_tinh"] = True
             an += 1
         if cap_nhat:
@@ -774,6 +791,8 @@ def xu_ly_mot_bai(rec):
         sb_cap_nhat(khoa, cap_nhat)
         return khoa, "không giải mã được link"
     cap_nhat["link_goc"] = link_goc
+    if nguon_bi_chan(rec.get("nguon", ""), link_goc):
+        cap_nhat["ngoai_tinh"] = True
     if can_xac_minh and nguon_tinh_khac(rec.get("nguon", ""), link_goc):
         cap_nhat["ngoai_tinh"] = True
 
@@ -825,7 +844,7 @@ def thu_sac_thai(tieu_de, tom_tat=""):
 def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "--thu-dia-ban":
         nguon = sys.argv[3] if len(sys.argv) > 3 else ""
-        ok = is_local_content(sys.argv[2], "", nguon, "")
+        ok = not nguon_bi_chan(nguon, nguon) and is_local_content(sys.argv[2], "", nguon, "")
         print("Địa bàn:", "THUỘC Tuyên Quang -> giữ" if ok else "NGOÀI tỉnh -> loại")
         return
     if len(sys.argv) >= 3 and sys.argv[1] == "--thu":
