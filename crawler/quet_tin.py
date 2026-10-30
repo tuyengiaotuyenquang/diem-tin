@@ -44,7 +44,7 @@ import trafilatura
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-PHIEN_BAN = "2026-10-28b"   # in ra log GitHub Actions để biết đang chạy bản nào
+PHIEN_BAN = "2026-10-30"   # in ra log GitHub Actions để biết đang chạy bản nào
 
 SO_NGAY_LUU = 30          # xóa tin cũ hơn số ngày này
 SO_NGAY_CHAM_LAI = 7      # chấm lại sắc thái cho tin trong bấy nhiêu ngày gần nhất
@@ -199,6 +199,7 @@ NEG_SU_CO = {
     "ngập lụt": 1, "bị ngập": 1, "ngập sâu": 1, "thiên tai": 1, "thiệt hại": 1,
     "tai nạn": 1, "mất an toàn": 1, "cháy rừng": 1, "hỏa hoạn": 1, "cháy nổ": 1,
     "sự cố": 1, "dông lốc": 1, "mưa đá": 1, "rét đậm": 1, "rét hại": 1,
+    "đuối nước": 1, "bị thương": 1, "điện giật": 1,
 }
 
 # Pháp luật, tội phạm: bỏ qua khi TIÊU ĐỀ nói về tuyên truyền, đấu tranh, kiểm sát, triệt phá
@@ -223,6 +224,10 @@ NGU_CANH_UNG_PHO = [
     "phòng, chống lụt bão", "phòng chống lụt bão", "cứu hộ", "cứu nạn", "tìm kiếm cứu nạn",
     "khắc phục hậu quả", "sơ tán", "di dời dân", "chủ động phòng", "sẵn sàng", "hỗ trợ người dân",
     "giúp dân", "phòng cháy", "chữa cháy", "pccc",
+    # phòng ngừa tai nạn, sự cố (vd "Điện lực tăng cường phòng tránh tai nạn điện, cháy nổ")
+    "phòng tránh", "phòng ngừa", "phòng, chống", "phòng chống", "ngăn ngừa", "ngăn chặn",
+    "bảo vệ an toàn", "bảo đảm an toàn", "đảm bảo an toàn", "an toàn lưới điện",
+    "an toàn giao thông", "an toàn lao động", "tuyên truyền", "tập huấn", "ra quân", "kiểm tra an toàn",
 ]
 # Tuyên truyền, đấu tranh pháp luật: chỉ xét TIÊU ĐỀ (tránh "Khởi tố đối tượng lừa đảo"
 # bị tính tích cực chỉ vì sapo có chữ "đấu tranh")
@@ -251,6 +256,7 @@ NGU_CANH_LAP_PHAP = [
 NGU_CANH_TIEN_ICH = [
     "thời tiết", "dự báo thời tiết", "lịch cắt điện", "lịch mất điện", "lịch cúp điện",
     "lịch tạm ngừng cấp điện", "xổ số", "giá vàng", "giá xăng",
+    "cảnh báo", "khuyến cáo",   # tin cảnh báo, khuyến cáo -> Trung lập
 ]
 DIEM_NGU_CANH = 2
 
@@ -335,8 +341,14 @@ def phan_tich_sac_thai(tieu_de, tom_tat=""):
     if nc_tien_ich:
         bo_qua |= {"dan_sinh", "su_co"}
 
+    # Tiêu đề là bài phòng ngừa/tuyên truyền/xử lý -> số liệu thương vong nêu trong SAPO chỉ là
+    # dẫn chứng (vd "năm qua có 5 em tử vong vì đuối nước"), không tính. Thương vong ở TIÊU ĐỀ vẫn tính.
+    bo_qua_sapo = set(bo_qua)
+    if nc_ung_pho or nc_dau_tranh or nc_tiep_thu:
+        bo_qua_sapo.add("thuong_vong")
+
     p1, n1, k1 = _diem_doan(td, bo_qua)
-    p2, n2, k2 = _diem_doan(tt, bo_qua)
+    p2, n2, k2 = _diem_doan(tt, bo_qua_sapo)
     nc_cong_diem = nc_gia_dinh | nc_ung_pho | nc_dau_tranh | nc_tiep_thu
     ngu_canh = sorted(nc_cong_diem | nc_tien_ich)
     diem = 2 * (p1 - n1) + (p2 - n2) + (DIEM_NGU_CANH if nc_cong_diem else 0)
